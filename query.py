@@ -3,7 +3,7 @@ import psycopg2
 import ollama
 from google import genai
 from dotenv import load_dotenv
-import os 
+import os  
 
 load_dotenv()
 
