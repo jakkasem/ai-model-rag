@@ -1,0 +1,8 @@
+.env
+.git
+.gitignore
+.gitlab-ci.yml
+__pycache__/
+*.pyc
+*.pyo
+readme.md
