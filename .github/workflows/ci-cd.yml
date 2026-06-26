@@ -51,13 +51,7 @@ jobs:
 
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
             echo '${{ secrets.CR_PAT }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin &&
-            docker pull $IMAGE &&
-            docker stop rag-api || true &&
-            docker rm rag-api || true &&
-            docker run -d \
-              --name rag-api \
-              --restart unless-stopped \
-              --env-file /home/${{ secrets.EC2_USER }}/.env \
-              -p 8001:8001 \
-              $IMAGE
+            cd ~/apps &&
+            docker compose pull rag-api &&
+            docker compose up -d --force-recreate rag-api
           "
