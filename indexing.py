@@ -7,7 +7,7 @@ import os
 
 load_dotenv()
 
-EMBED_MODEL = os.getenv("EMBED_MODEL", "qwen3-embedding:0.6b")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 DB_URL = os.getenv("DB_URL", "postgresql://myuser:mypassword@localhost:5432/mydb")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
@@ -49,4 +49,4 @@ def index_pdf(pdf_path: str):
     print("done!")
 
 if __name__ == "__main__":
-    index_pdf("DOS-Requirement.pdf")
+    index_pdf("AnnualReport_2568.pdf") #AnnualReport_2568.pdf

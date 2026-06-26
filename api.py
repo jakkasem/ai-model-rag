@@ -9,7 +9,7 @@ import ollama
 
 load_dotenv()
 
-EMBED_MODEL = os.getenv("EMBED_MODEL", "qwen3-embedding:0.6b")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DB_URL = os.getenv("DB_URL", "postgresql://myuser:mypassword@localhost:5432/mydb")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")

@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api.py indexing.py query.py query_local.py init.sql ./
-COPY DOS-Requirement.pdf .
+COPY *.pdf .
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 

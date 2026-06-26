@@ -10,7 +10,7 @@ CREATE TABLE documents (
   filename TEXT,
   chunk_index INT,
   content TEXT,
-  embedding vector(1024)  -- แก้จาก 1536 → 1024
+  embedding vector(768)
 );
 
 CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops)
