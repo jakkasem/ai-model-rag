@@ -37,11 +37,7 @@ logger = logging.getLogger("dos_rag")
 OLLAMA_HOST        = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
-DB_HOST            = os.getenv("DB_HOST", "localhost")
-DB_NAME            = os.getenv("DB_NAME", "mydb")
-DB_USER            = os.getenv("DB_USER", "postgres")
-DB_PASSWORD        = os.getenv("DB_PASSWORD", "postgres")
-DB_PORT            = int(os.getenv("DB_PORT", "5432"))
+DB_URL             = os.getenv("DB_URL", "postgresql://postgres:postgres@localhost:5432/mydb")
 
 # --- Threshold configs ---
 VECTOR_DISTANCE_THRESHOLD   = float(os.getenv("VECTOR_DISTANCE_THRESHOLD", "0.45"))
@@ -99,11 +95,7 @@ def get_db_pool() -> pg_pool.ThreadedConnectionPool:
         _db_pool = pg_pool.ThreadedConnectionPool(
             minconn=2,
             maxconn=10,
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            port=DB_PORT,
+            dsn=DB_URL,
         )
     return _db_pool
 

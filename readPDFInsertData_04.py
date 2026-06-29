@@ -224,11 +224,19 @@
 # =============================================================================
 
 import os
+import hashlib
+import logging
 import psycopg2
 import pdfplumber
 import pytesseract
 import cv2
 import numpy as np
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
+)
+logger = logging.getLogger("pdf_indexer")
 
 from pdf2image import convert_from_path
 from PIL import Image
@@ -288,9 +296,39 @@ def preprocess_image(pil_image):
     return Image.fromarray(resized)
 
 
+def compute_file_hash(filepath: str) -> str:
+    h = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for block in iter(lambda: f.read(8192), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def is_already_indexed(cur, filename: str, file_hash: str) -> bool:
+    cur.execute(
+        "SELECT file_hash FROM public.pdf_index_log WHERE filename = %s",
+        (filename,)
+    )
+    row = cur.fetchone()
+    return row is not None and row[0] == file_hash
+
+
+def update_index_log(cur, filename: str, file_hash: str) -> None:
+    cur.execute(
+        """
+        INSERT INTO public.pdf_index_log (filename, file_hash)
+        VALUES (%s, %s)
+        ON CONFLICT (filename) DO UPDATE
+            SET file_hash = EXCLUDED.file_hash,
+                indexed_at = now()
+        """,
+        (filename, file_hash)
+    )
+
+
 def extract_pdf_with_ocr(file_path, dpi=400):
 
-    print("Using OCR with preprocessing (tha+eng)...")
+    logger.info("Using OCR with preprocessing (tha+eng)...")
 
     pages = convert_from_path(
         file_path,
@@ -329,10 +367,7 @@ def extract_pdf_content(file_path):
 
     try:
 
-        print(
-            f"Trying pdfplumber extraction: "
-            f"{os.path.basename(file_path)}"
-        )
+        logger.info("Trying pdfplumber extraction: %s", os.path.basename(file_path))
 
         with pdfplumber.open(file_path) as pdf:
 
@@ -394,17 +429,11 @@ def extract_pdf_content(file_path):
         extracted = "\n\n".join(full_content)
 
         if len(extracted.strip()) > 300:
-
-            print(
-                f"pdfplumber extracted "
-                f"{len(extracted)} chars"
-            )
-
+            logger.info("pdfplumber extracted %d chars", len(extracted))
             return extracted
 
     except Exception as e:
-
-        print(f"pdfplumber failed: {e}")
+        logger.warning("pdfplumber failed: %s", e)
 
     return extract_pdf_with_ocr(file_path)
 
@@ -435,100 +464,74 @@ def chunk_text(
 def process_pdf_to_db(filepath):
 
     db_url = os.getenv("DB_URL", "postgresql://postgres:postgres@localhost:5432/mydb")
-
+    title = os.path.basename(filepath)
     conn = None
 
+    logger.info("Starting indexing: %s", title)
+
+    file_hash = compute_file_hash(filepath)
+    logger.info("File hash: %s", file_hash)
+
     try:
-
-        title = os.path.basename(filepath)
-
-        content = extract_pdf_content(filepath)
-
-        chunks = chunk_text(content)
-
-        print(f"Processing {len(chunks)} chunks")
-
         conn = psycopg2.connect(db_url)
         cur = conn.cursor()
 
-        # ลบข้อมูลเก่าของ title นี้ก่อน 1 ครั้ง (ต้องอยู่นอก loop)
+        if is_already_indexed(cur, title, file_hash):
+            logger.info("SKIP — %s is unchanged (hash match), no re-indexing needed.", title)
+            return
+
+        logger.info("Hash changed or new file — starting full re-index for: %s", title)
+
+        content = extract_pdf_content(filepath)
+        chunks = chunk_text(content)
+
+        valid_chunks = [c for c in chunks if len(c.strip()) >= 20]
+        logger.info("Valid chunks to insert: %d", len(valid_chunks))
+
         cur.execute(
-            """
-            DELETE FROM public.fujitsu_hr_policy
-            WHERE title = %s
-            """,
+            "DELETE FROM public.fujitsu_hr_policy WHERE title = %s",
             (title,)
         )
-        print(f"Deleted old data for: {title}")
+        logger.info("Deleted old data for: %s", title)
 
         inserted = 0
-
-        total_chunks = len([c for c in chunks if len(c.strip()) >= 20])
-        print(f"Valid chunks to insert: {total_chunks}")
-
-        for chunk in chunks:
-
-            if len(chunk.strip()) < 20:
-                continue
-
-            embedding = MODEL.encode(
-                f"passage: {chunk}"
-            ).tolist()
-
+        for chunk in valid_chunks:
+            embedding = MODEL.encode(f"passage: {chunk}").tolist()
             cur.execute(
                 """
-                INSERT INTO public.fujitsu_hr_policy
-                (
-                    title,
-                    content,
-                    embedding
-                )
-                VALUES
-                (
-                    %s,
-                    %s,
-                    %s::public.vector
-                )
+                INSERT INTO public.fujitsu_hr_policy (title, content, embedding)
+                VALUES (%s, %s, %s::public.vector)
                 """,
-                (
-                    title,
-                    chunk,
-                    embedding
-                )
+                (title, chunk, embedding)
             )
-
             inserted += 1
 
+        update_index_log(cur, title, file_hash)
         conn.commit()
-
-        print(f"Successfully inserted {inserted} chunks for: {title}")
+        logger.info("Done — inserted %d chunks for: %s", inserted, title)
 
     except Exception as e:
-
-        print(f"Error occurred: {e}")
-
+        logger.exception("Error occurred: %s", e)
         if conn:
             conn.rollback()
 
     finally:
-
         if conn:
             cur.close()
             conn.close()
 
 
 def process_folder(folder_path: str):
-    """index PDF ทุกไฟล์ใน folder"""
     pdf_files = [
         os.path.join(folder_path, f)
         for f in os.listdir(folder_path)
         if f.lower().endswith(".pdf")
     ]
-    print(f"Found {len(pdf_files)} PDF files in {folder_path}")
+    logger.info("Found %d PDF files in %s", len(pdf_files), folder_path)
     for i, fp in enumerate(pdf_files, 1):
-        print(f"\n[{i}/{len(pdf_files)}] Processing: {os.path.basename(fp)}")
+        logger.info("[%d/%d] Processing: %s", i, len(pdf_files), os.path.basename(fp))
         process_pdf_to_db(fp)
-    print("\nAll files processed.")
+    logger.info("All files processed.")
 
 
 if __name__ == "__main__":
@@ -542,15 +545,15 @@ if __name__ == "__main__":
         if os.path.exists(args.file):
             process_pdf_to_db(args.file)
         else:
-            print(f"File not found: {args.file}")
+            logger.error("File not found: %s", args.file)
     elif args.folder:
         if os.path.isdir(args.folder):
             process_folder(args.folder)
         else:
-            print(f"Folder not found: {args.folder}")
+            logger.error("Folder not found: %s", args.folder)
     else:
         filepath = os.getenv("PDF_FILE", "AnnualReport_2568.pdf")
         if os.path.exists(filepath):
             process_pdf_to_db(filepath)
         else:
-            print(f"File not found: {filepath}")
+            logger.error("File not found: %s", filepath)

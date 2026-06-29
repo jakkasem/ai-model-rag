@@ -1,5 +1,16 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
+
+
+CREATE TABLE IF NOT EXISTS public.pdf_index_log (
+    filename TEXT PRIMARY KEY,
+    file_hash TEXT NOT NULL,
+    indexed_at TIMESTAMPTZ DEFAULT now()
+);
+
+
+
+
 drop TABLE documents;
 CREATE TABLE documents (
   id SERIAL PRIMARY KEY,
