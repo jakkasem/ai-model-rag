@@ -7,7 +7,16 @@ CREATE TABLE IF NOT EXISTS public.pdf_index_log (
     file_hash TEXT NOT NULL,
     indexed_at TIMESTAMPTZ DEFAULT now()
 );
+-- เพิ่ม column table_name
+ALTER TABLE public.pdf_index_log
+    ADD COLUMN IF NOT EXISTS table_name TEXT NOT NULL DEFAULT '';
 
+-- ลบ primary key เดิม (filename อย่างเดียว) แล้วสร้างใหม่เป็น composite
+ALTER TABLE public.pdf_index_log
+    DROP CONSTRAINT IF EXISTS pdf_index_log_pkey;
+
+ALTER TABLE public.pdf_index_log
+    ADD PRIMARY KEY (filename, table_name);
 
 
 

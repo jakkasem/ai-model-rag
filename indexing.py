@@ -30,10 +30,13 @@ def compute_file_hash(filepath: str) -> str:
     return h.hexdigest()
 
 
+TABLE_NAME = "documents"
+
+
 def is_already_indexed(cur, filename: str, file_hash: str) -> bool:
     cur.execute(
-        "SELECT file_hash FROM public.pdf_index_log WHERE filename = %s",
-        (filename,)
+        "SELECT file_hash FROM public.pdf_index_log WHERE filename = %s AND table_name = %s",
+        (filename, TABLE_NAME)
     )
     row = cur.fetchone()
     return row is not None and row[0] == file_hash
@@ -42,13 +45,13 @@ def is_already_indexed(cur, filename: str, file_hash: str) -> bool:
 def update_index_log(cur, filename: str, file_hash: str) -> None:
     cur.execute(
         """
-        INSERT INTO public.pdf_index_log (filename, file_hash)
-        VALUES (%s, %s)
-        ON CONFLICT (filename) DO UPDATE
+        INSERT INTO public.pdf_index_log (filename, table_name, file_hash)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (filename, table_name) DO UPDATE
             SET file_hash = EXCLUDED.file_hash,
                 indexed_at = now()
         """,
-        (filename, file_hash)
+        (filename, TABLE_NAME, file_hash)
     )
 
 
