@@ -49,4 +49,5 @@ def index_pdf(pdf_path: str):
     print("done!")
 
 if __name__ == "__main__":
-    index_pdf("AnnualReport_2568.pdf") #AnnualReport_2568.pdf
+    pdf_file = os.getenv("PDF_FILE", "AnnualReport_2568.pdf")
+    index_pdf(pdf_file)

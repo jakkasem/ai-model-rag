@@ -7,3 +7,11 @@ langchain-text-splitters==0.3.0
 google-genai==1.16.0
 pydantic==2.9.2
 python-dotenv==1.0.1
+# indexer dependencies
+pdfplumber==0.11.4
+pdf2image==1.17.0
+pytesseract==0.3.13
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+pillow==10.4.0
+sentence-transformers==3.3.1

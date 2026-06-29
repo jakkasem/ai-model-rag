@@ -5,16 +5,23 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
+    tesseract-ocr \
+    tesseract-ocr-tha \
+    tesseract-ocr-eng \
+    poppler-utils \
+    libglib2.0-0 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api.py indexing.py query.py query_local.py init.sql ./
-COPY *.pdf .
+COPY dos_rag_08.py readPDFInsertData_04.py main.py ./
+COPY AnnualReport_2568.pdf .
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-EXPOSE 8001
+EXPOSE 8000 8001
 
 ENTRYPOINT ["./entrypoint.sh"]
