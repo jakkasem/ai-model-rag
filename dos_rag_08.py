@@ -8,9 +8,8 @@ import asyncio
 import hashlib
 import logging
 import time
-import re
 from contextlib import asynccontextmanager
-from collections import defaultdict, Counter
+from collections import Counter
 from typing import Optional
 
 import psycopg2
@@ -19,7 +18,7 @@ from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer, CrossEncoder
-from ollama import Client
+from google import genai
 import os
 
 # ---------------------------------------------------------------------------
@@ -34,8 +33,8 @@ logger = logging.getLogger("dos_rag")
 # ---------------------------------------------------------------------------
 # Config (ดึงจาก env vars ทั้งหมด — ไม่ hardcode)
 # ---------------------------------------------------------------------------
-OLLAMA_HOST        = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL       = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 DB_URL             = os.getenv("DB_URL", "postgresql://postgres:postgres@localhost:5432/mydb")
 
@@ -52,7 +51,7 @@ QUERIES_PER_REQUEST         = int(os.getenv("QUERIES_PER_REQUEST", "2"))
 _embed_model: Optional[SentenceTransformer] = None
 _reranker: Optional[CrossEncoder] = None
 _db_pool: Optional[pg_pool.ThreadedConnectionPool] = None
-_ollama_client: Optional[Client] = None
+_gemini_client: Optional[genai.Client] = None
 
 # Response cache — คำถามเดิมที่ถามซ้ำใน TTL จะตอบทันทีไม่ต้องรันใหม่
 _RESPONSE_CACHE: dict[str, tuple[str, float]] = {}
@@ -99,11 +98,11 @@ def get_db_pool() -> pg_pool.ThreadedConnectionPool:
         )
     return _db_pool
 
-def get_ollama() -> Client:
-    global _ollama_client
-    if _ollama_client is None:
-        _ollama_client = Client(host=OLLAMA_HOST)
-    return _ollama_client
+def get_gemini() -> genai.Client:
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    return _gemini_client
 
 # ---------------------------------------------------------------------------
 # Lifespan (FastAPI >= 0.93)
@@ -113,7 +112,7 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(get_embed_model)
     await asyncio.to_thread(get_reranker)
     await asyncio.to_thread(get_db_pool)
-    get_ollama()
+    get_gemini()
     logger.info("✅ All models and DB pool ready.")
     yield
     if _db_pool:
@@ -328,42 +327,23 @@ def _run_rag_sync(user_message: str, history: list[Message]) -> str:
     })
 
     try:
-        resp = get_ollama().chat(
-            model=OLLAMA_MODEL,
-            messages=messages_payload,
-            options={
-                "temperature": 0.1,
-                "top_p": 0.9,
-                "num_predict": 400,
-                "repeat_penalty": 1.15,
-            },
+        # แปลง messages_payload เป็น prompt string สำหรับ Gemini
+        parts = []
+        for m in messages_payload:
+            role = m["role"].upper()
+            parts.append(f"{role}: {m['content']}")
+        full_prompt = "\n\n".join(parts)
+
+        resp = get_gemini().models.generate_content(
+            model=GEMINI_MODEL,
+            contents=full_prompt,
         )
-        answer = resp["message"]["content"]
-
-        # ปรับปรุงความเร็ว: ใช้ Regex แทน list comprehension วนลูปเช็กอักษรจีนทีละตัว
-        chinese_chars = len(re.findall(r"[一-鿿]", answer))
-        if chinese_chars > len(answer) * 0.3:
-            logger.warning("Response detected as Chinese, retrying with stronger prompt...")
-            messages_payload[-1]["content"] += (
-                "\n\n[IMPORTANT: Your previous response was in Chinese. "
-                "You MUST respond in THAI ONLY.]"
-            )
-            resp2 = get_ollama().chat(
-                model=OLLAMA_MODEL,
-                messages=messages_payload,
-                options={
-                    "temperature": 0.1,
-                    "top_p": 0.9,
-                    "num_predict": 300,
-                    "repeat_penalty": 1.15,
-                },
-            )
-            answer = resp2["message"]["content"]
-
+        answer = resp.text
+        logger.info("Gemini response received, length=%d chars", len(answer))
         return answer
-    
+
     except Exception as exc:
-        logger.exception("Ollama chat error")
+        logger.exception("Gemini chat error")
         return f"เกิดข้อผิดพลาดในการเชื่อมต่อ LLM: {exc}"
 
 # ---------------------------------------------------------------------------
