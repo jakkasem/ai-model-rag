@@ -555,7 +555,7 @@ if __name__ == "__main__":
         else:
             logger.error("Folder not found: %s", args.folder)
     else:
-        filepath = os.getenv("PDF_FILE", "AnnualReport_2568.pdf")
+        filepath = os.getenv("PDF_FILE", "ai-booklet.pdf")
         if os.path.exists(filepath):
             process_pdf_to_db(filepath)
         else:

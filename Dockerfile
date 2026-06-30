@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api.py indexing.py query.py query_local.py init.sql ./
 COPY dos_rag_08.py readPDFInsertData_04.py main.py ./
-COPY AnnualReport_2568.pdf .
+COPY ai-booklet.pdf .
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
