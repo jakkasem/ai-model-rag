@@ -111,5 +111,5 @@ def index_pdf(pdf_path: str):
 
 
 if __name__ == "__main__":
-    pdf_file = os.getenv("PDF_FILE", "ai-booklet.pdf")
+    pdf_file = os.getenv("PDF_FILE", "condition-loan.pdf")
     index_pdf(pdf_file)
