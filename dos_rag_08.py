@@ -299,7 +299,7 @@ def _run_rag_sync(user_message: str, history: list[Message]) -> str:
         "คุณคือผู้ช่วย HR สำหรับบริษัท Fujitsu/AEONTS "
         "ตอบคำถามโดยอ้างอิงจาก Context ที่ให้มาเท่านั้น อย่าแต่งเติมข้อมูล "
         "ถ้า Context ไม่มีคำตอบให้ตอบว่า: "
-        "'ขออภัย ข้อมูลที่ฉันมีไม่ครอบคลุมคำถามนี้ กรุณาติดต่อฝ่าย HR โดยตรงครับ' "
+        "'ขออภัย ข้อมูลที่ฉันมีไม่ครอบคลุมคำถามนี้' "
         "CRITICAL INSTRUCTION: You MUST respond in Thai language ONLY. "
         "DO NOT use Chinese, English, or any other language. "
         "Even if the context documents are in Chinese or English, "
